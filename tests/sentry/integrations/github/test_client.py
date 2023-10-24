@@ -98,7 +98,7 @@ class GitHubAppsClientTest(TestCase):
             assert gh_rate_limit.next_window() == "17:39:49"
 
     @responses.activate
-    def test_get_rate_limit_non_existant_resouce(self):
+    def test_get_rate_limit_non_existent_resource(self):
         with pytest.raises(AssertionError):
             self.github_client.get_rate_limit("foo")
 
@@ -1159,35 +1159,29 @@ class GitHubClientFileBlameResponseTest(GitHubClientFileBlameBase):
 
     def setUp(self):
         super().setUp()
-
-    @mock.patch("sentry.integrations.github.client.get_jwt", return_value=b"jwt_token_1")
-    @responses.activate
-    def test_get_blame_for_files_full_response(self, get_jwt):
-        """
-        Tests that the correct commits are returned when a full response is returned
-        """
-        file1 = SourceLineInfo(
+        self.file1 = SourceLineInfo(
             path="src/sentry/integrations/github/client_1.py",
             lineno=10,
             ref="master",
             repo=self.repo_1,
             code_mapping=None,  # type:ignore
         )
-        file2 = SourceLineInfo(
+        self.file2 = SourceLineInfo(
             path="src/sentry/integrations/github/client_1.py",
             lineno=15,
             ref="master",
             repo=self.repo_1,
             code_mapping=None,  # type:ignore
         )
-        file3 = SourceLineInfo(
+        self.file3 = SourceLineInfo(
             path="src/sentry/integrations/github/client_2.py",
             lineno=20,
             ref="master",
             repo=self.repo_1,
             code_mapping=None,  # type:ignore
         )
-        data = {
+
+        self.data = {
             "repository0": {
                 "ref0": {
                     "target": {
@@ -1240,21 +1234,28 @@ class GitHubClientFileBlameResponseTest(GitHubClientFileBlameBase):
             }
         }
 
+    @mock.patch("sentry.integrations.github.client.get_jwt", return_value=b"jwt_token_1")
+    @responses.activate
+    def test_get_blame_for_files_full_response(self, get_jwt):
+        """
+        Tests that the correct commits are returned when a full response is returned
+        """
+
         responses.add(
             method=responses.POST,
             url="https://api.github.com/graphql",
             json={
-                "data": data,
+                "data": self.data,
             },
             content_type="application/json",
         )
 
-        response = self.github_client.get_blame_for_files([file1, file2, file3])
+        response = self.github_client.get_blame_for_files([self.file1, self.file2, self.file3])
         self.assertEqual(
             response,
             [
                 FileBlameInfo(
-                    **asdict(file1),
+                    **asdict(self.file1),
                     commit=CommitInfo(
                         commitId="123",
                         commitAuthorName="foo1",
@@ -1264,7 +1265,7 @@ class GitHubClientFileBlameResponseTest(GitHubClientFileBlameBase):
                     ),
                 ),
                 FileBlameInfo(
-                    **asdict(file3),
+                    **asdict(self.file3),
                     commit=CommitInfo(
                         commitId="456",
                         commitAuthorName="foo2",
@@ -1275,6 +1276,57 @@ class GitHubClientFileBlameResponseTest(GitHubClientFileBlameBase):
                 ),
             ],
         )
+
+    @mock.patch("sentry.integrations.github.client.get_jwt", return_value=b"jwt_token_1")
+    @responses.activate
+    def test_get_cached_blame_for_files_full_response(self, get_jwt):
+        """
+        Tests that the cached commits are returned with full response
+        """
+        responses.add(
+            method=responses.POST,
+            url="https://api.github.com/graphql",
+            json={
+                "data": self.data,
+            },
+            content_type="application/json",
+        )
+        cache_key = "integration.github.client:c5f94e3edae168469aeb9736536817c5"
+        assert cache.get(cache_key) is None
+        response = self.github_client.get_blame_for_files([self.file1, self.file2, self.file3])
+        self.assertEqual(
+            response,
+            [
+                FileBlameInfo(
+                    **asdict(self.file1),
+                    commit=CommitInfo(
+                        commitId="123",
+                        commitAuthorName="foo1",
+                        commitAuthorEmail="foo1@example.com",
+                        commitMessage="hello",
+                        committedDate=datetime(2022, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+                    ),
+                ),
+                FileBlameInfo(
+                    **asdict(self.file3),
+                    commit=CommitInfo(
+                        commitId="456",
+                        commitAuthorName="foo2",
+                        commitAuthorEmail="foo2@example.com",
+                        commitMessage="hello",
+                        committedDate=datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+                    ),
+                ),
+            ],
+        )
+        assert cache.get(cache_key) == response
+        # Calling a second time should work
+        response = self.github_client.get_blame_for_files([self.file1, self.file2, self.file3])
+        assert cache.get(cache_key) == response
+        # Calling again after the cache has been cleared should still work
+        cache.delete(cache_key)
+        response = self.github_client.get_blame_for_files([self.file1, self.file2, self.file3])
+        assert cache.get(cache_key) == response
 
     @mock.patch("sentry.integrations.github.client.get_jwt", return_value=b"jwt_token_1")
     @responses.activate
