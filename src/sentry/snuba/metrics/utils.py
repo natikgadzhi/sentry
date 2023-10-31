@@ -138,6 +138,7 @@ MetricType = Literal[
     "generic_counter",
     "generic_set",
     "generic_distribution",
+    "generic_gauge",
 ]
 
 MetricEntity = Literal[
@@ -147,6 +148,7 @@ MetricEntity = Literal[
     "generic_metrics_counters",
     "generic_metrics_sets",
     "generic_metrics_distributions",
+    "generic_metrics_gauges",
 ]
 
 OP_TO_SNUBA_FUNCTION = {
@@ -176,11 +178,19 @@ OP_TO_SNUBA_FUNCTION = {
         "min_timestamp": "minIf",
         "max_timestamp": "maxIf",
     },
+    "metrics_gauges": {
+        "count": "countIf",
+        "max": "maxIf",
+        "min": "minIf",
+        "sum": "sumIf",
+        "last": "lastIf",
+    },
 }
 GENERIC_OP_TO_SNUBA_FUNCTION = {
     "generic_metrics_counters": OP_TO_SNUBA_FUNCTION["metrics_counters"],
     "generic_metrics_distributions": OP_TO_SNUBA_FUNCTION["metrics_distributions"],
     "generic_metrics_sets": OP_TO_SNUBA_FUNCTION["metrics_sets"],
+    "generic_metrics_gauges": OP_TO_SNUBA_FUNCTION["metrics_gauges"],
 }
 
 # This set contains all the operations that require the "rhs" condition to be resolved
