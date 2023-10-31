@@ -691,6 +691,7 @@ class GitHubClientMixin(GithubProxyClient):
         return response_ref.get("target", {}).get("blame", {}).get("ranges", [])
 
     def get_blame_for_files(self, files: Sequence[SourceLineInfo]) -> Sequence[FileBlameInfo]:
+        metrics.incr("sentry.integrations.github.get_blame_for_files")
         rate_limit = self.get_rate_limit(specific_resource="graphql")
         if rate_limit.remaining < MINIMUM_REQUESTS:
             metrics.incr("sentry.integrations.github.get_blame_for_files.rate_limit")
